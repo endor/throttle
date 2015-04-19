@@ -1,4 +1,5 @@
 var request = require('request');
+var fs = require('fs');
 var Q = require('q');
 
 module.exports = {
@@ -16,6 +17,12 @@ module.exports = {
   },
   delete: function(path) {
     return this.request('DELETE', this.endpoint + path, undefined);
+  },
+
+  logError: function(err, callback) {
+    fs.appendFile('request_log.txt', err + '\n', function() {
+      callback();
+    });
   },
 
   request: function(verb, uri, data) {
@@ -36,13 +43,18 @@ module.exports = {
 
     request(requestOptions, function(err, response, body) {
       if(err) {
-        deferred.reject(new Error(err));
+        this.logError(err, function() {
+          deferred.reject(new Error(err));
+        });
       } else if(response.statusCode > 206) {
-        deferred.reject(new Error('Unexpected response ' + response.statusCode + ' for ' + uri + ': ' + response.body));
+        var errorMessage = 'Unexpected response ' + response.statusCode + ' for ' + uri + ': ' + response.body;
+        this.logError(errorMessage, function() {
+          deferred.reject(new Error(errorMessage));
+        });
       } else {
         deferred.resolve(body);
       }
-    });
+    }.bind(this));
 
     return deferred.promise;
   }

@@ -1,3 +1,4 @@
+var fs = require('fs');
 var chai = require('chai');
 var nock = require('nock');
 var api = require('../api');
@@ -122,6 +123,25 @@ describe('api', function() {
           budget: 500
         }).then(null, function() {
           done();
+        });
+      });
+    });
+
+    describe('log errors', function() {
+      it('logs error to request_log.txt', function(done) {
+        var scope = nock('http://example.com').post('/campaigns').reply(401, 'Unauthorized');
+        api.post('/campaigns', {
+          name: 'Some campaign',
+          budget: 500
+        }).then(null, function() {
+          fs.readFile('./request_log.txt', 'utf8', function(err, data) {
+            if(err) {
+              throw new Error(err);
+            }
+
+            expect(data).to.match(/Unexpected response 401/);
+            done();
+          });
         });
       });
     });
