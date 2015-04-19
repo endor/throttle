@@ -4,6 +4,13 @@ var api = require('../api');
 var expect = chai.expect;
 
 describe('api', function() {
+  var assertDone = function(scope, done) {
+    setTimeout(function() {
+      scope.done();
+      done();
+    }, 5);
+  };
+
   describe('configure endpoint and token', function() {
     it('has a null endpoint if not set', function() {
       expect(api.endpoint).to.be.null;
@@ -24,40 +31,77 @@ describe('api', function() {
     });
   });
 
-  describe('make http requests', function() {
-    var assertDone = function(scope, done) {
-      setTimeout(function() {
-        scope.done();
-        done();
-      }, 5);
-    };
-
-    before(function() {
+  describe('make requests', function() {
+    beforeEach(function() {
       api.endpoint = 'http://example.com';
+      api.token = null;
     });
 
-    it('allows me to do a get request', function(done) {
-      var scope = nock('http://example.com').get('/campaigns').reply(200);
-      api.get('/campaigns');
-      assertDone(scope, done);
+    describe('make http requests', function() {
+      it('allows me to do a get request', function(done) {
+        var scope = nock('http://example.com').get('/campaigns').reply(200);
+        api.get('/campaigns');
+        assertDone(scope, done);
+      });
+
+      it('allows me to do a post request', function(done) {
+        var scope = nock('http://example.com').post('/campaigns').reply(200);
+        api.post('/campaigns');
+        assertDone(scope, done);
+      });
+
+      it('allows me to do a put request', function(done) {
+        var scope = nock('http://example.com').put('/campaigns/1').reply(200);
+        api.put('/campaigns/1');
+        assertDone(scope, done);
+      });
+
+      it('allows me to do a delete request', function(done) {
+        var scope = nock('http://example.com').delete('/campaigns/1').reply(200);
+        api.delete('/campaigns/1');
+        assertDone(scope, done);
+      });
     });
 
-    it('allows me to do a post request', function(done) {
-      var scope = nock('http://example.com').post('/campaigns').reply(200);
-      api.post('/campaigns');
-      assertDone(scope, done);
+    describe('send data', function() {
+      it('allows me to send data with post requests', function(done) {
+        var scope = nock('http://example.com').post('/campaigns', {
+          name: 'Some campaign',
+          budget: 500
+        }).reply(200);
+        api.post('/campaigns', {
+          name: 'Some campaign',
+          budget: 500
+        });
+        assertDone(scope, done);
+      });
+
+      it('allows me to send data with put requests', function(done) {
+        var scope = nock('http://example.com').put('/campaigns/1', {
+          name: 'Some campaign',
+          budget: 500
+        }).reply(200);
+        api.put('/campaigns/1', {
+          name: 'Some campaign',
+          budget: 500
+        });
+        assertDone(scope, done);
+      });
     });
 
-    it('allows me to do a put request', function(done) {
-      var scope = nock('http://example.com').put('/campaigns/1').reply(200);
-      api.put('/campaigns/1');
-      assertDone(scope, done);
-    });
-
-    it('allows me to do a delete request', function(done) {
-      var scope = nock('http://example.com').delete('/campaigns/1').reply(200);
-      api.delete('/campaigns/1');
-      assertDone(scope, done);
+    describe('send token', function() {
+      it('sends the token as GET parameter with every request', function(done) {
+        var scope = nock('http://example.com').post('/campaigns?token=ABC', {
+          name: 'Some campaign',
+          budget: 500
+        }).reply(200);
+        api.token = 'ABC';
+        api.post('/campaigns', {
+          name: 'Some campaign',
+          budget: 500
+        });
+        assertDone(scope, done);
+      });
     });
   });
 });
