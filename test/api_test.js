@@ -103,5 +103,27 @@ describe('api', function() {
         assertDone(scope, done);
       });
     });
+
+    describe('return promise', function() {
+      it('returns a promise that allows passing a success callback', function(done) {
+        var scope = nock('http://example.com').post('/campaigns').reply(200);
+        api.post('/campaigns', {
+          name: 'Some campaign',
+          budget: 500
+        }).then(function() {
+          done();
+        });
+      });
+
+      it('returns a promise that allows passing an error callback', function(done) {
+        var scope = nock('http://example.com').post('/campaigns').reply(404);
+        api.post('/campaigns', {
+          name: 'Some campaign',
+          budget: 500
+        }).then(null, function() {
+          done();
+        });
+      });
+    });
   });
 });
