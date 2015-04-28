@@ -1,63 +1,65 @@
 var request = require('request');
 var fs = require('fs');
 var Q = require('q');
-var _ = require('underscore');
+var _ = require('lodash');
 
 var queueInterval = null,
-  queue = [],
-  queueLog = [],
-  queueStarted = false,
-  allowedNumberOfRequests = 600,
-  perSeconds = 600;
+  startedQueue = null;
 
-function countEntriesInLog() {
-  return _.reduce(queueLog, function(count, requests) {
-    return count + requests;
-  }, 0);
+function Queue(throttle) {
+  if(queueInterval) {
+    clearInterval(queueInterval);
+    queueInterval = null;
+  }
+
+  this.allowedNumberOfRequests = (throttle && throttle.requests) || 600;
+  this.perSeconds = (throttle && throttle.seconds) || 600;
+  this.queue = [];
+  this.log = [];
+
+  _.each(_.range(this.perSeconds), function() {
+    this.log.push(0);
+  }.bind(this));
+
+  this.updateLogs();
 }
 
-function workOffQueue() {
-  if(countEntriesInLog() < allowedNumberOfRequests && queue.length > 0) {
-    var entry = queue.shift();
+Queue.prototype.push = function(entry) {
+  this.queue.push(entry);
+};
+
+Queue.prototype.updateLogs = function() {
+  queueInterval = setInterval(function(queue) {
+    queue.log.shift();
+
+    if(queue.log.length < queue.perSeconds) {
+      queue.log.push(0);
+    }
+
+    queue.workOff();
+  }, 1000, this);
+};
+
+Queue.prototype.workOff = function() {
+  while(this.countEntriesInLog() < this.allowedNumberOfRequests && this.queue.length > 0) {
+    var entry = this.queue.shift();
     entry.callback(entry.requestOptions, entry.deferred);
-    queueLog[queueLog.length - 1] += 1;
-    workOffQueue();
+    this.log[this.log.length - 1] += 1;
   }
-}
+};
 
-function updateLogs() {
-  queueInterval = setInterval(function() {
-    queueLog.shift();
+Queue.prototype.countEntriesInLog = function() {
+  return _.sum(this.log);
+};
 
-    if(queueLog.length < perSeconds) {
-      queueLog.push(0);
-    }
-
-    workOffQueue();
-  }, 1000);
-}
-
-function startQueue(throttle) {
-  if(!queueStarted) {
-    if(queueInterval) {
-      clearInterval(queueInterval);
-      queueInterval = null;
-    }
-
-    allowedNumberOfRequests = (throttle && throttle.requests) || 600;
-    perSeconds = (throttle && throttle.seconds) || 600;
-
-    queueStarted = true;
-    queue = [];
-    queueLog = [];
-
-    _.each(_.range(perSeconds), function() {
-      queueLog.push(0);
-    });
-
-    updateLogs();
+function getLocalQueue(throttle) {
+  if(!startedQueue) {
+    startedQueue = new Queue(throttle);
   }
+
+  return startedQueue;
 }
+
 
 function logError(err, callback) {
   fs.appendFile('request_log.txt', err + '\n', function() {
@@ -66,9 +68,9 @@ function logError(err, callback) {
 }
 
 function throttleRequest(callback, requestOptions, deferred, throttle) {
-  startQueue(throttle);
+  var queue = getLocalQueue(throttle);
   queue.push({callback: callback, requestOptions: requestOptions, deferred: deferred});
-  workOffQueue();
+  queue.workOff();
 }
 
 function sendRequest(requestOptions, deferred) {
@@ -132,8 +134,8 @@ module.exports = {
   },
 
   resetQueue: function() {
-    queueStarted = false;
-    startQueue(this.throttle);
+    startedQueue = null;
+    getLocalQueue(this.throttle);
   },
 
   sendRequest: sendRequest
